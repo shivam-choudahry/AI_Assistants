@@ -1,1 +1,1 @@
-##### Chat with PDF using DeepSeek R1 LLM model and embedding model from ollama. Vector database-Chromadb. Langchain for RAG #####
+##### AI Assistant for pdf chatbot, code assistant and youtube video summarizer using ollama, deepseek r1, langchain and streamlit #####
