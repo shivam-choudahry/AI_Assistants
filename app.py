@@ -4,12 +4,13 @@ import time
 import streamlit as st
 from streamlit_chat import message
 from chatpdf import ChatPDF
+import pymupdf
 from codeassist import code_assistant
 from YTtransciber import yt_transcriber, extract_transcript_details
 
 def display_messages():
     """Display the chat history."""
-    st.subheader("Chat History")
+    st.subheader("What can I help with?")
     for i, (msg, is_user) in enumerate(st.session_state["messages"]):
         message(msg, is_user=is_user, key=str(i))
     st.session_state["thinking_spinner"] = st.empty()
@@ -18,7 +19,7 @@ def process_input():
     """Process the user input and generate an assistant response."""
     if st.session_state["user_input"] and len(st.session_state["user_input"].strip()) > 0:
         user_text = st.session_state["user_input"].strip()
-        with st.session_state["thinking_spinner"], st.spinner("Thinking..."):
+        with st.session_state["thinking_spinner"], st.spinner("Analysing..."):
             try:
                 agent_text = st.session_state["assistant"].ask(
                     user_text,
@@ -52,6 +53,16 @@ def read_and_save_file():
         )
         os.remove(file_path)
 
+def get_pdf_first_page_image(file):
+    with open("temp.pdf", "wb") as f:
+        f.write(file.getvalue())
+    doc = pymupdf.open("temp.pdf")
+    os.makedirs("static", exist_ok=True)  # Ensure storage directory exists
+    pix = doc[0].get_pixmap()
+    image_path = "static/first_page.png"
+    pix.save(image_path)
+    return image_path
+
 def page():
     """Main app page layout."""
     if len(st.session_state) == 0:
@@ -63,27 +74,35 @@ def page():
     functionality = st.sidebar.selectbox("Choose a functionality", ["PDF Chat", "Code Assistant", "YT Transcriber"])
 
     if functionality == "PDF Chat":
-        st.header("Your DeepSeek R1 Assistant")
-        st.subheader("Upload a Document")
-        st.file_uploader(
-            "Upload a PDF document",
-            type=["pdf"],
-            key="file_uploader",
-            on_change=read_and_save_file,
-            label_visibility="collapsed",
-            accept_multiple_files=True,
-        )
+        st.title("📄 DocuAssist AI")
+        st.caption("💬 Chat with your documents")
+
+        # Sidebar configuration
+        with st.sidebar:
+            st.markdown("### AI Assistant Capabilities")
+            st.markdown("""
+            - 📄 Documents Preview
+            - 💬 Chat with Documents
+            """)
+
+            # Retrieval settings in sidebar
+            st.subheader("Retrieval Settings")
+            st.session_state["retrieval_k"] = st.slider("Number of Retrieved Results (k)", min_value=1, max_value=10, value=5)
+            st.session_state["retrieval_threshold"] = st.slider("Similarity Score Threshold", 
+                                                                min_value=0.0, max_value=1.0, value=0.2, step=0.05)
+
+            # PDF Preview
+            uploaded_files = st.file_uploader("Upload a document", type=["pdf"], key="file_uploader", 
+            on_change=read_and_save_file, label_visibility="collapsed", accept_multiple_files=True,)
+            if isinstance(uploaded_files, list):
+                for uploaded_file in uploaded_files:
+                    image_path = get_pdf_first_page_image(uploaded_file)
+                    st.image(image_path, caption="First Page of PDF")
+            else:
+                image_path = get_pdf_first_page_image(uploaded_files)
+                st.image(image_path, caption="First Page of PDF")
 
         st.session_state["ingestion_spinner"] = st.empty()
-
-        # Retrieval settings in sidebar
-        st.sidebar.subheader("Retrieval Settings")
-        st.session_state["retrieval_k"] = st.sidebar.slider(
-            "Number of Retrieved Results (k)", min_value=1, max_value=10, value=5
-        )
-        st.session_state["retrieval_threshold"] = st.sidebar.slider(
-            "Similarity Score Threshold", min_value=0.0, max_value=1.0, value=0.2, step=0.05
-        )
 
         # Display chat history
         display_messages()
@@ -96,24 +115,18 @@ def page():
             st.session_state["message_log"] = []
 
     elif functionality == "Code Assistant":
-        st.title("🧠 DeepSeek Code Companion")
-        st.caption("🚀 Your AI Pair Programmer with Debugging Superpowers")
+        st.title("🧠 Code Companion AI")
+        st.caption("🚀 Your buddy with AI programming expertise")
 
         # Sidebar configuration
         with st.sidebar:
-            # st.header("⚙️ Configuration")
-            # selected_model = st.selectbox(
-            #     "Choose Model",
-            #     ["deepseek-r1:1.5b", "deepseek-r1:3b"],
-            #     index=0
-            # )
             st.divider()
             st.markdown("### Capabilities")
             st.markdown("""
-            - 🐍 Python Expert
-            - 🐞 Debugging Assistant
-            - 📝 Code Documentation
             - 💡 Solution Design
+            - 📝 Code Documentation
+            - 🐞 Debugging Assistant
+            - 🐍 Python Expert
             """)
             st.divider()
             st.markdown("Built with [Ollama](https://ollama.ai/) | [LangChain](https://python.langchain.com/)")
@@ -142,8 +155,18 @@ def page():
             st.rerun()
 
     elif functionality == "YT Transcriber":
-        st.title("YouTube Transcript to Detailed Notes Converter")
+        st.title("🎥 YouTube Video Summarizer")
         youtube_link = st.text_input("Enter YouTube Video Link:")
+
+         # Sidebar configuration
+        with st.sidebar:
+            st.divider()
+            st.markdown("### Capabilities")
+            st.markdown("""
+            - 💡 Transcript extraction
+            - 📝 Notes conversion
+            """)
+            st.divider()
 
         # Display chat messages
         with st.container():

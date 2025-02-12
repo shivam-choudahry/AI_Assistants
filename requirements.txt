@@ -4,5 +4,6 @@ langchain_ollama
 langchain_community
 streamlit-chat
 pypdf
+pymupdf
 chromadb
 youtube_transcript_api
