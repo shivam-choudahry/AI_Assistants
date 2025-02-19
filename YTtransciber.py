@@ -31,7 +31,7 @@ def create_system_prompt():
 def build_prompt_chain():
     """Build the prompt chain for the AI response."""
     prompt_sequence = [create_system_prompt()]
-    for msg in st.session_state.message_log:
+    for msg in st.session_state.yt_messages:
         if msg["role"] == "user":
             prompt_sequence.append(HumanMessagePromptTemplate.from_template(msg["content"]))
         elif msg["role"] == "ai":
