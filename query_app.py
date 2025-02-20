@@ -2,6 +2,8 @@ import streamlit as st
 import ollama
 import sqlite3
 import random
+import re
+import pandas as pd
 from datetime import datetime, timedelta
 
 DB_FILE = "vehicles.db"
@@ -43,9 +45,19 @@ class VehicleDatabase:
 
 def generate_sql_query(question, database, table):
     """Use DeepSeek R1 via Ollama to generate an SQL query."""
-    prompt = f"Generate an SQL query to answer: '{question}' using table {database}.{table}"
+    # {database}.
+    prompt = f"Generate an SQL query to answer: '{question}' using table {table} and it should return the all the columns from the table."
     response = ollama.chat(model="deepseek-r1:latest", messages=[{"role": "user", "content": prompt}])
     return response['message']['content']
+
+def extract_sql_query(text):
+    # Regular expression to find SQL queries inside triple backticks
+    pattern = re.compile(r'```sql\n(.*?)\n```', re.DOTALL)
+    
+    # Search for matches in the text
+    matches = pattern.findall(text)
+    
+    return matches
 
 # Streamlit UI
 st.title("💡 Your SQL query generator Assistant")
@@ -69,8 +81,8 @@ if st.button("Ingest Random Data"):
     st.success("Random data ingested successfully!")
 
 # User Inputs
-question = st.text_input("Enter your question:", "give me 10 customers")
-database = "vehicles.db"
+question = st.text_input("Enter your question:", "Type your question here...")
+database = DB_FILE
 table = "vehicle_data"
 
 if st.button("Get Insights"):
@@ -78,22 +90,32 @@ if st.button("Get Insights"):
     st.markdown("### 🔍 Generated SQL:")
     st.code(sql_query, language="sql")
 
-    # Debug: Print generated query before execution
-    print("Generated SQL Query:", sql_query)  # Debugging output
+    # Extract only the SQL query portion from the generated text
+    extracted_sql_query = extract_sql_query(sql_query)
+
+    st.markdown("### 🔍 Extracted SQL Query:")
+    st.code(extracted_sql_query[0], language="sql")
 
     # Execute and display query results safely
-    # try:
-    #     if not sql_query.lower().startswith("select"):
-    #         st.error("Invalid SQL query generated. Please refine your question.")
-    #     else:
-    #         data = db.fetch_data(sql_query)
-    #         if data:
-    #             st.markdown("### 📊 Query Results:")
-    #             st.dataframe(data[:6])  # Show first 6 rows
-    #         else:
-    #             st.write("No data found.")
-    # except sqlite3.OperationalError as e:
-    #     st.error(f"SQL execution error: {e}")
-    #     print(f"SQL execution error: {e}")  # Debugging output
+    try:
+        if not extracted_sql_query[0].lower().startswith("select"):
+            st.error("Invalid SQL query generated. Please refine your question.")
+        else:
+            data = db.fetch_data(extracted_sql_query[0])
+            # Convert data to a pandas DataFrame if it's not already one.
+            if not isinstance(data, pd.DataFrame):
+                # Specify column names as per your schema.
+                columns = ["vehicle_id", "event_time", "latitude", "longitude", "speed", "engine_state", "base_lat", "base_long"]
+                data = pd.DataFrame(data, columns=columns)
+                
+            if not data.empty:
+                st.markdown("### 📊 Query Results with first 6 rows:")
+                st.caption("Total number of records fetched: " + str(len(data)))
+                st.dataframe(data.head(6))
+            else:
+                st.write("No data found.")
+    except sqlite3.OperationalError as e:
+        st.error(f"SQL execution error: {e}")
+        print(f"SQL execution error: {e}")  # Debugging output
 
 db.close()
